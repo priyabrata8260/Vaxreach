@@ -3,6 +3,7 @@ const statusClasses = {
   Scheduled: 'status-badge--scheduled',
   'Follow-up': 'status-badge--follow-up',
   Pending: 'status-badge--pending',
+  Overdue: 'status-badge--overdue',
 }
 
 function StatusBadge({ status }) {
