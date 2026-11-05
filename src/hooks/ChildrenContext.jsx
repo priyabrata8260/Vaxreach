@@ -7,6 +7,7 @@ import { isSupabaseConfigured } from '../lib/supabase.js'
 import * as repository from '../lib/supabaseRepository.js'
 
 const REGISTRY_STORAGE_KEY = 'vaxreach-child-registry-v1'
+const EMPTY_CHILDREN = []
 function readRegistry() {
   try {
     const saved = window.localStorage.getItem(REGISTRY_STORAGE_KEY)
@@ -35,26 +36,50 @@ function isValidISODate(value) {
 }
 
 export function ChildrenProvider({ children: appChildren }) {
+  const { session, sessionRevision } = useAuth()
+  const scopeKey = isSupabaseConfigured ? `${session?.user?.id ?? 'signed-out'}:${sessionRevision}` : 'local'
+  return <ScopedChildrenProvider key={scopeKey}>{appChildren}</ScopedChildrenProvider>
+}
+
+function ScopedChildrenProvider({ children: appChildren }) {
   const { session, profile, cloudEnabled } = useAuth()
-  const [children, setChildren] = useState(() => isSupabaseConfigured ? [] : readRegistry())
-  const [loading, setLoading] = useState(isSupabaseConfigured)
-  const [error, setError] = useState('')
+  const userId = session?.user?.id ?? null
+  const ownerId = isSupabaseConfigured ? userId : 'local'
+  const [registryState, setRegistryState] = useState(() => isSupabaseConfigured
+    ? { ownerId: null, children: [], loading: true, error: '' }
+    : { ownerId: 'local', children: readRegistry(), loading: false, error: '' })
+  const ownsRegistry = registryState.ownerId === ownerId
+  const children = ownsRegistry ? registryState.children : EMPTY_CHILDREN
+  const loading = isSupabaseConfigured ? Boolean(userId) && (!ownsRegistry || registryState.loading) : false
+  const error = userId && ownsRegistry ? registryState.error : ''
   const loadRequest = useRef(0)
   const recordedDoseKeys = useRef(new Set(children.flatMap((child) => child.vaccinationHistory.map((dose) => `${child.childId}:${dose.id}`))))
+  const updateRegistryState = useCallback((forUserId, update) => {
+    setRegistryState((current) => {
+      const base = current.ownerId === forUserId
+        ? current
+        : { ownerId: forUserId, children: [], loading: false, error: '' }
+      const changes = typeof update === 'function' ? update(base) : update
+      return { ...base, ...changes, ownerId: forUserId }
+    })
+  }, [])
+  const isCurrentOwner = useCallback((forUserId) => ownerId === forUserId, [ownerId])
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return undefined
-    if (!session) return undefined
+    if (!isSupabaseConfigured || !userId) return undefined
     const requestId = ++loadRequest.current
+    recordedDoseKeys.current = new Set()
     repository.listChildren().then((rows) => {
       if (requestId !== loadRequest.current) return
-      setChildren(rows)
-      setError('')
+      setRegistryState({ ownerId: userId, children: rows, loading: false, error: '' })
       recordedDoseKeys.current = new Set(rows.flatMap((child) => child.vaccinationHistory.map((dose) => `${child.childId}:${dose.id}`)))
-    }).catch((cause) => { if (requestId === loadRequest.current) setError(cause.message || 'Unable to load child records.') })
-      .finally(() => { if (requestId === loadRequest.current) setLoading(false) })
-    return () => { loadRequest.current += 1 }
-  }, [session])
+    }).catch((cause) => {
+      if (requestId === loadRequest.current) {
+        setRegistryState({ ownerId: userId, children: [], loading: false, error: cause.message || 'Unable to load child records.' })
+      }
+    })
+    return () => { if (loadRequest.current === requestId) loadRequest.current += 1 }
+  }, [userId, ownerId])
 
   useEffect(() => {
     if (isSupabaseConfigured) return
@@ -67,36 +92,48 @@ export function ChildrenProvider({ children: appChildren }) {
 
   const addChild = useCallback(async (details) => {
     if (!hasPermission(PERMISSIONS.MANAGE_ASSIGNMENTS, cloudEnabled ? profile : undefined)) return null
+    const operationOwnerId = ownerId
+    if (isSupabaseConfigured && !userId) return null
     const child = createChildRecord({ ...details, childId: nextChildId(children) })
     if (isSupabaseConfigured) {
       try {
-        await repository.createChild({ ...details, childId: child.childId }, session.user.id)
-        const rows = await repository.listChildren(); setChildren(rows)
+        await repository.createChild({ ...details, childId: child.childId }, userId)
+        if (!isCurrentOwner(operationOwnerId)) return null
+        const rows = await repository.listChildren()
+        if (!isCurrentOwner(operationOwnerId)) return null
+        updateRegistryState(operationOwnerId, { children: rows, loading: false, error: '' })
         return rows.find((row) => row.childId === child.childId) ?? child
-      } catch (cause) { setError(cause.message || 'Unable to save child.'); return null }
+      } catch (cause) { if (isCurrentOwner(operationOwnerId)) updateRegistryState(operationOwnerId, { error: cause.message || 'Unable to save child.' }); return null }
     }
-    setChildren((current) => [child, ...current])
+    updateRegistryState(operationOwnerId, (current) => ({ children: [child, ...current.children] }))
     return child
-  }, [children, session, profile, cloudEnabled])
+  }, [children, userId, ownerId, profile, cloudEnabled, isCurrentOwner, updateRegistryState])
 
   const updateChild = useCallback(async (childId, details) => {
     if (!hasPermission(PERMISSIONS.MANAGE_ASSIGNMENTS, cloudEnabled ? profile : undefined)) return null
+    const operationOwnerId = ownerId
+    if (isSupabaseConfigured && !userId) return null
     const currentChild = children.find((child) => child.childId === childId)
     if (!currentChild) return null
     const updatedChild = createChildRecord({ ...currentChild, ...details, childId })
     if (isSupabaseConfigured) {
       try {
         await repository.updateChild(childId, { ...currentChild, ...details })
-        const rows = await repository.listChildren(); setChildren(rows)
+        if (!isCurrentOwner(operationOwnerId)) return null
+        const rows = await repository.listChildren()
+        if (!isCurrentOwner(operationOwnerId)) return null
+        updateRegistryState(operationOwnerId, { children: rows, loading: false, error: '' })
         return rows.find((row) => row.childId === childId) ?? updatedChild
-      } catch (cause) { setError(cause.message || 'Unable to update child.'); return null }
+      } catch (cause) { if (isCurrentOwner(operationOwnerId)) updateRegistryState(operationOwnerId, { error: cause.message || 'Unable to update child.' }); return null }
     }
-    setChildren((current) => current.map((child) => child.childId === childId ? updatedChild : child))
+    updateRegistryState(operationOwnerId, (current) => ({ children: current.children.map((child) => child.childId === childId ? updatedChild : child) }))
     return updatedChild
-  }, [children, profile, cloudEnabled])
+  }, [children, userId, ownerId, profile, cloudEnabled, isCurrentOwner, updateRegistryState])
 
   const recordDose = useCallback(async (childId, doseId, administeredDate) => {
     if (!hasPermission(PERMISSIONS.RECORD_VACCINATION, cloudEnabled ? profile : undefined)) return { ok: false, message: 'Your account cannot record vaccinations.' }
+    const operationOwnerId = ownerId
+    if (isSupabaseConfigured && !userId) return { ok: false, message: 'Your session has ended. Sign in again to continue.' }
     const child = children.find((record) => record.childId === childId)
     if (!child) return { ok: false, message: 'Child record was not found.' }
     const dose = VACCINATION_SCHEDULE.find((item) => item.id === doseId)
@@ -121,17 +158,35 @@ export function ChildrenProvider({ children: appChildren }) {
     const updatedChild = createChildRecord({ ...child, vaccinationHistory })
     if (isSupabaseConfigured) {
       try {
-        await repository.recordVaccination(child, doseId, administeredDate, session.user.id)
-        const rows = await repository.listChildren(); setChildren(rows)
+        await repository.recordVaccination(child, doseId, administeredDate, userId)
+        if (!isCurrentOwner(operationOwnerId)) return { ok: false, message: 'Your session changed before the record finished loading.' }
+        const rows = await repository.listChildren()
+        if (!isCurrentOwner(operationOwnerId)) return { ok: false, message: 'Your session changed before the record finished loading.' }
+        updateRegistryState(operationOwnerId, { children: rows, loading: false, error: '' })
         recordedDoseKeys.current.add(recordKey)
         return { ok: true, child: rows.find((row) => row.childId === childId) ?? updatedChild }
       } catch (cause) { return { ok: false, message: cause.message || 'Unable to save vaccination.' } }
     }
     recordedDoseKeys.current.add(recordKey)
-    setChildren((current) => current.map((record) => record.childId === childId ? updatedChild : record))
+    updateRegistryState(operationOwnerId, (current) => ({ children: current.children.map((record) => record.childId === childId ? updatedChild : record) }))
     return { ok: true, child: updatedChild }
-  }, [children, session, profile, cloudEnabled])
+  }, [children, userId, ownerId, profile, cloudEnabled, isCurrentOwner, updateRegistryState])
 
-  const value = useMemo(() => ({ children, addChild, updateChild, recordDose, loading, error, refreshChildren: async () => { if (isSupabaseConfigured && session) setChildren(await repository.listChildren()) } }), [children, addChild, updateChild, recordDose, loading, error, session])
+  const refreshChildren = useCallback(async () => {
+    if (!isSupabaseConfigured || !userId) return
+    const requestId = ++loadRequest.current
+    const requestOwnerId = ownerId
+    updateRegistryState(requestOwnerId, { children: [], loading: true, error: '' })
+    try {
+      const rows = await repository.listChildren()
+      if (!isCurrentOwner(requestOwnerId) || requestId !== loadRequest.current) return
+      updateRegistryState(requestOwnerId, { children: rows, loading: false, error: '' })
+      recordedDoseKeys.current = new Set(rows.flatMap((child) => child.vaccinationHistory.map((dose) => `${child.childId}:${dose.id}`)))
+    } catch (cause) {
+      if (isCurrentOwner(requestOwnerId) && requestId === loadRequest.current) updateRegistryState(requestOwnerId, { children: [], loading: false, error: cause.message || 'Unable to load child records.' })
+    }
+  }, [userId, ownerId, isCurrentOwner, updateRegistryState])
+
+  const value = useMemo(() => ({ children, addChild, updateChild, recordDose, loading, error, refreshChildren }), [children, addChild, updateChild, recordDose, loading, error, refreshChildren])
   return <ChildrenContext.Provider value={value}>{appChildren}</ChildrenContext.Provider>
 }

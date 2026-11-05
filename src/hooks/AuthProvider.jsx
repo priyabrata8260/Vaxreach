@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AuthContext } from './AuthContext.js'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 import { APP_ROLES } from '../utils/accessControl.js'
@@ -12,6 +12,21 @@ export function AuthProvider({ children }) {
   const [profileLoading, setProfileLoading] = useState(isSupabaseConfigured)
   const [roleCheckLoading, setRoleCheckLoading] = useState(false)
   const [error, setError] = useState('')
+  const [sessionRevision, setSessionRevision] = useState(0)
+  const previousSessionUserIdRef = useRef(null)
+  const activeSessionRevisionRef = useRef(0)
+  const profileLoadRequest = useRef(0)
+  const sessionUserId = session?.user?.id ?? null
+  const publishSession = useCallback((nextSession) => {
+    const nextUserId = nextSession?.user?.id ?? null
+    const previousUserId = previousSessionUserIdRef.current
+    if (previousUserId !== nextUserId || !nextUserId) {
+      activeSessionRevisionRef.current += 1
+      setSessionRevision(activeSessionRevisionRef.current)
+    }
+    previousSessionUserIdRef.current = nextUserId
+    setSession(nextSession)
+  }, [])
 
   useEffect(() => {
     if (!isSupabaseConfigured) return undefined
@@ -19,43 +34,50 @@ export function AuthProvider({ children }) {
     supabase.auth.getSession().then(({ data, error: sessionError }) => {
       if (!mounted) return
       if (sessionError) setError(sessionError.message)
-      setSession(data?.session ?? null)
+      publishSession(data?.session ?? null)
       setLoading(false)
       setProfileLoading(Boolean(data?.session))
     })
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession)
+      publishSession(nextSession)
       setProfile(null)
       setProfileLoading(Boolean(nextSession))
       setLoading(false)
       setError('')
     })
     return () => { mounted = false; listener.subscription.unsubscribe() }
-  }, [])
+  }, [publishSession])
 
   useEffect(() => {
-    if (!session?.user) return undefined
-    let active = true
-    supabase.from('profiles').select('id, full_name, role').eq('id', session.user.id).single()
+    if (!sessionUserId) return undefined
+    const userId = sessionUserId
+    const requestId = ++profileLoadRequest.current
+    const requestRevision = sessionRevision
+    supabase.from('profiles').select('id, full_name, role').eq('id', userId).single()
       .then(async ({ data, error: profileError }) => {
-        if (!active) return
+        if (profileLoadRequest.current !== requestId || activeSessionRevisionRef.current !== requestRevision) return
         if (profileError) { setError('Your account profile could not be loaded. Contact an administrator.'); setProfileLoading(false); return }
         if (data?.role === 'asha_worker') {
-          const { data: worker, error: workerError } = await supabase.from('asha_workers').select('worker_code,name').eq('profile_id', data.id).maybeSingle()
-          if (!active) return
+          const { data: worker, error: workerError } = await supabase.from('asha_workers').select('worker_code,name,active').eq('profile_id', data.id).eq('active', true).maybeSingle()
+          if (profileLoadRequest.current !== requestId || activeSessionRevisionRef.current !== requestRevision) return
           if (workerError) setError(workerError.message)
-          setProfile({ ...data, workerCode: worker?.worker_code, workerName: worker?.name })
+          setProfile({ ...data, workerCode: worker?.worker_code, workerName: worker?.name, workerActive: worker?.active === true })
         } else setProfile(data ?? null)
         setProfileLoading(false)
       })
-      .catch(() => { if (active) { setError('Your account profile could not be loaded. Contact an administrator.'); setProfileLoading(false) } })
-    return () => { active = false }
-  }, [session])
+      .catch(() => {
+        if (profileLoadRequest.current === requestId && activeSessionRevisionRef.current === requestRevision) {
+          setError('Your account profile could not be loaded. Contact an administrator.')
+          setProfileLoading(false)
+        }
+      })
+    return () => { if (profileLoadRequest.current === requestId) profileLoadRequest.current += 1 }
+  }, [sessionUserId, sessionRevision])
 
   const visibleProfile = profile?.id === session?.user?.id ? profile : null
 
   const value = useMemo(() => ({
-    session, profile: visibleProfile, loading, profileLoading, roleCheckLoading, error, cloudEnabled: isSupabaseConfigured,
+    session, sessionRevision, profile: visibleProfile, loading, profileLoading, roleCheckLoading, error, cloudEnabled: isSupabaseConfigured,
     signIn: async (identifier, password, selectedRole) => {
       if (![APP_ROLES.ADMINISTRATOR, APP_ROLES.ASHA_WORKER].includes(selectedRole)) throw new Error('Choose a valid sign-in portal.')
       setRoleCheckLoading(true)
@@ -80,12 +102,20 @@ export function AuthProvider({ children }) {
           await supabase.auth.signOut({ scope: 'local' })
           throw new Error(portalMismatchMessage)
         }
+        if (selectedRole === APP_ROLES.ASHA_WORKER) {
+          const { data: worker, error: workerError } = await supabase.from('asha_workers')
+            .select('worker_code').eq('profile_id', sessionData.session.user.id).eq('active', true).maybeSingle()
+          if (workerError || !worker?.worker_code) {
+            await supabase.auth.signOut({ scope: 'local' })
+            throw new Error(portalMismatchMessage)
+          }
+        }
         setError('')
       } finally {
         setRoleCheckLoading(false)
       }
     },
     signOut: async () => { const { error: signOutError } = await supabase.auth.signOut(); if (signOutError) throw signOutError },
-  }), [session, visibleProfile, loading, profileLoading, roleCheckLoading, error])
+  }), [session, sessionRevision, visibleProfile, loading, profileLoading, roleCheckLoading, error])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

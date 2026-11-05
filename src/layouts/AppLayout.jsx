@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Activity, BarChart3, ClipboardList, HeartPulse, Map, Menu, Settings, ShieldCheck, Syringe, Upload, UserRound, Users, X, LogOut } from 'lucide-react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
 import { useChildren } from '../hooks/useChildren.js'
@@ -28,6 +28,9 @@ function AppLayout({ role }) {
   const navItems = !isSupabaseConfigured ? demoNav : role === 'administrator' ? adminNav : ashaNav
   const roleLabel = isSupabaseConfigured ? role === 'administrator' ? 'Administrator' : 'ASHA Worker' : 'Synthetic demonstration'
   const homePath = !isSupabaseConfigured ? '/' : role === 'administrator' ? '/admin/dashboard' : '/asha/dashboard'
+  const profilePath = role === 'administrator' ? '/admin/profile' : '/asha/profile'
+  const profileName = profile?.workerName || profile?.full_name || 'Prototype administrator'
+  const initials = profileName.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
   const handleSignOut = async () => {
     setAuthError('')
     try {
@@ -45,7 +48,7 @@ function AppLayout({ role }) {
     </aside>
     {menuOpen && <button className="sidebar-backdrop" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
     <div className="main-column">
-      <header className="topbar"><button className="icon-button menu-toggle" aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button><div className="topbar-context"><span className="context-dot" />{role === 'asha_worker' ? 'Community health field team' : 'District immunisation programme'}</div><div className="workspace-label"><ShieldCheck size={16} /><span>{profile?.full_name || profile?.workerName || 'Prototype administrator'}<small className="role-caption">{roleLabel}</small></span>{isSupabaseConfigured && <button className="signout-button" onClick={handleSignOut}><LogOut size={14} /><span>Sign out</span></button>}</div></header>
+      <header className="topbar"><button className="icon-button menu-toggle" aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button><div className="topbar-context"><span className="context-dot" />{role === 'asha_worker' ? 'Community health field team' : 'District immunisation programme'}</div><div className="topbar-account">{isSupabaseConfigured ? <Link className="topbar-profile" to={profilePath} aria-label={`View profile for ${profileName}`}><span className="avatar">{initials}</span><span className="topbar-profile-copy"><strong>{profileName}</strong><small className="role-caption">{roleLabel}</small></span></Link> : <div className="topbar-profile" aria-label="Synthetic demonstration profile"><span className="avatar">VR</span><span className="topbar-profile-copy"><strong>{profileName}</strong><small className="role-caption">{roleLabel}</small></span></div>}{isSupabaseConfigured && <button className="signout-button" onClick={handleSignOut}><LogOut size={14} /><span>Sign out</span></button>}</div></header>
       {authError && <div className="cloud-data-error" role="alert">{authError}</div>}
       {cloudError && <div className="cloud-data-error" role="alert">Cloud data error: {cloudError}</div>}
       {(childrenData.loading || outreachData.loading) && <div className="cloud-data-loading" role="status">Loading VaxReach records…</div>}

@@ -9,6 +9,7 @@ import { isSupabaseConfigured } from '../lib/supabase.js'
 import * as repository from '../lib/supabaseRepository.js'
 
 const TASK_STORAGE_KEY = 'vaxreach-outreach-tasks-v1'
+const EMPTY_TASKS = []
 
 function nextTaskId(tasks) {
   const highestId = tasks.reduce((highest, task) => {
@@ -36,23 +37,46 @@ function validDate(value) {
 }
 
 export function OutreachProvider({ children: appChildren }) {
+  const { session, sessionRevision } = useAuth()
+  const scopeKey = isSupabaseConfigured ? `${session?.user?.id ?? 'signed-out'}:${sessionRevision}` : 'local'
+  return <ScopedOutreachProvider key={scopeKey}>{appChildren}</ScopedOutreachProvider>
+}
+
+function ScopedOutreachProvider({ children: appChildren }) {
   const { session, profile, cloudEnabled } = useAuth()
   const { children, updateChild } = useChildren()
-  const [tasks, setTasks] = useState(() => isSupabaseConfigured ? [] : readTasks(children))
-  const [loading, setLoading] = useState(isSupabaseConfigured)
-  const [error, setError] = useState('')
+  const userId = session?.user?.id ?? null
+  const ownerId = isSupabaseConfigured ? userId : 'local'
+  const [taskState, setTaskState] = useState(() => isSupabaseConfigured
+    ? { ownerId: null, tasks: [], loading: true, error: '' }
+    : { ownerId: 'local', tasks: readTasks(children), loading: false, error: '' })
+  const ownsTaskState = taskState.ownerId === ownerId
+  const tasks = ownsTaskState ? taskState.tasks : EMPTY_TASKS
+  const loading = isSupabaseConfigured ? Boolean(userId) && (!ownsTaskState || taskState.loading) : false
+  const error = userId && ownsTaskState ? taskState.error : ''
+  const taskRequest = useRef(0)
+
+  const updateTaskState = useCallback((forOwnerId, update) => {
+    setTaskState((current) => {
+      const base = current.ownerId === forOwnerId
+        ? current
+        : { ownerId: forOwnerId, tasks: [], loading: false, error: '' }
+      const changes = typeof update === 'function' ? update(base) : update
+      return { ...base, ...changes, ownerId: forOwnerId }
+    })
+  }, [])
+  const isCurrentOwner = useCallback((forOwnerId) => ownerId === forOwnerId, [ownerId])
 
   useEffect(() => {
-    if (isSupabaseConfigured) {
-      if (!session) return undefined
-      let active = true
-      repository.listTasks().then((rows) => { if (active) { setTasks(rows); setError('') } })
-        .catch((cause) => { if (active) setError(cause.message || 'Unable to load outreach tasks.') })
-        .finally(() => { if (active) setLoading(false) })
-      return () => { active = false }
-    }
-    return undefined
-  }, [session])
+    if (!isSupabaseConfigured || !userId) return undefined
+    const requestId = ++taskRequest.current
+    repository.listTasks().then((rows) => {
+      if (requestId === taskRequest.current) setTaskState({ ownerId, tasks: rows, loading: false, error: '' })
+    }).catch((cause) => {
+      if (requestId === taskRequest.current) setTaskState({ ownerId, tasks: [], loading: false, error: cause.message || 'Unable to load outreach tasks.' })
+    })
+    return () => { if (taskRequest.current === requestId) taskRequest.current += 1 }
+  }, [userId, ownerId])
 
   useEffect(() => {
     if (isSupabaseConfigured) return
@@ -65,30 +89,35 @@ export function OutreachProvider({ children: appChildren }) {
 
   const assignChildToWorker = useCallback(async (childId, workerName) => {
     if (!hasPermission(PERMISSIONS.MANAGE_ASSIGNMENTS, cloudEnabled ? profile : undefined)) return { ok: false, message: 'Administrator access is required to assign children.' }
+    const operationOwnerId = ownerId
     if (!ASHA_WORKER_ROSTER.some((worker) => worker.name === workerName)) return { ok: false, message: 'Select a valid ASHA worker.' }
     const child = children.find((record) => record.childId === childId)
     if (!child) return { ok: false, message: 'Child record was not found.' }
     const updatedChild = await updateChild(childId, { assignedAshaWorker: workerName })
     if (!updatedChild) return { ok: false, message: 'Child assignment could not be saved.' }
-    setTasks((current) => current.map((task) => task.childId === childId && task.status === 'Open' ? { ...task, assignedTo: workerName } : task))
+    updateTaskState(operationOwnerId, (current) => ({ tasks: current.tasks.map((task) => task.childId === childId && task.status === 'Open' ? { ...task, assignedTo: workerName } : task) }))
     return { ok: true, child: updatedChild }
-  }, [children, updateChild, profile, cloudEnabled])
+  }, [children, updateChild, profile, cloudEnabled, ownerId, updateTaskState])
 
   const updateChildDetails = useCallback(async (childId, details) => {
     if (!hasPermission(PERMISSIONS.MANAGE_ASSIGNMENTS, cloudEnabled ? profile : undefined)) return { ok: false, message: 'Administrator access is required to edit child assignments.' }
+    const operationOwnerId = ownerId
     const currentChild = children.find((child) => child.childId === childId)
     if (!currentChild) return { ok: false, message: 'Child record was not found.' }
     if (!ASHA_WORKER_ROSTER.some((worker) => worker.name === details.assignedAshaWorker)) return { ok: false, message: 'Select a valid ASHA worker.' }
     const updatedChild = await updateChild(childId, details)
     if (!updatedChild) return { ok: false, message: 'Child record could not be updated.' }
     if (currentChild.assignedAshaWorker !== updatedChild.assignedAshaWorker) {
-      setTasks((current) => current.map((task) => task.childId === childId && task.status === 'Open' ? { ...task, assignedTo: updatedChild.assignedAshaWorker } : task))
+      updateTaskState(operationOwnerId, (current) => ({ tasks: current.tasks.map((task) => task.childId === childId && task.status === 'Open' ? { ...task, assignedTo: updatedChild.assignedAshaWorker } : task) }))
     }
     return { ok: true, child: updatedChild }
-  }, [children, updateChild, profile, cloudEnabled])
+  }, [children, updateChild, profile, cloudEnabled, ownerId, updateTaskState])
 
   const addTask = useCallback(async (details) => {
     if (!hasPermission(PERMISSIONS.MANAGE_OUTREACH, cloudEnabled ? profile : undefined)) return { ok: false, message: 'Your account cannot add follow-up tasks.' }
+    const operationOwnerId = ownerId
+    const operationUserId = userId
+    if (isSupabaseConfigured && !operationUserId) return { ok: false, message: 'Your session has ended. Sign in again to continue.' }
     const child = children.find((record) => record.childId === details.childId)
     if (!child) return { ok: false, message: 'Select a registered child.' }
     if (!ASHA_WORKER_ROSTER.some((worker) => worker.name === details.assignedTo)) return { ok: false, message: 'Select a valid ASHA worker.' }
@@ -110,41 +139,59 @@ export function OutreachProvider({ children: appChildren }) {
     }
     if (isSupabaseConfigured) {
       try {
-        await repository.createTask(task, child, session.user.id)
-        setTasks(await repository.listTasks())
+        await repository.createTask(task, child, operationUserId)
+        if (!isCurrentOwner(operationOwnerId)) return { ok: false, message: 'Your session changed before the task finished loading.' }
+        const rows = await repository.listTasks()
+        if (!isCurrentOwner(operationOwnerId)) return { ok: false, message: 'Your session changed before the task finished loading.' }
+        updateTaskState(operationOwnerId, { tasks: rows, loading: false, error: '' })
         return { ok: true, task }
-      } catch (cause) { setError(cause.message || 'Unable to create outreach task.'); return { ok: false, message: cause.message || 'Unable to create outreach task.' } }
+      } catch (cause) { if (isCurrentOwner(operationOwnerId)) updateTaskState(operationOwnerId, { error: cause.message || 'Unable to create outreach task.' }); return { ok: false, message: cause.message || 'Unable to create outreach task.' } }
     }
-    setTasks((current) => [task, ...current])
+    updateTaskState(operationOwnerId, (current) => ({ tasks: [task, ...current.tasks] }))
     return { ok: true, task }
-  }, [children, tasks, session, profile, cloudEnabled])
+  }, [children, tasks, userId, ownerId, profile, cloudEnabled, isCurrentOwner, updateTaskState])
 
   const assignTask = useCallback(async (taskId, workerName) => {
     if (!hasPermission(PERMISSIONS.MANAGE_ASSIGNMENTS, cloudEnabled ? profile : undefined)) return { ok: false, message: 'Administrator access is required to reassign tasks.' }
+    const operationOwnerId = ownerId
     if (!ASHA_WORKER_ROSTER.some((worker) => worker.name === workerName)) return { ok: false, message: 'Select a valid ASHA worker.' }
     const task = tasks.find((record) => record.taskId === taskId)
     if (!task) return { ok: false, message: 'Follow-up task was not found.' }
     if (task.status !== 'Open') return { ok: false, message: 'Reopen this task before changing its assignment.' }
     if (isSupabaseConfigured) {
-      try { await repository.updateTask(taskId, { assignedTo: workerName }, children); setTasks(await repository.listTasks()); return { ok: true } }
-      catch (cause) { return { ok: false, message: cause.message || 'Unable to reassign task.' } }
+      try {
+        await repository.updateTask(taskId, { assignedTo: workerName }, children)
+        if (!isCurrentOwner(operationOwnerId)) return { ok: false, message: 'Your session changed before the task finished loading.' }
+        const rows = await repository.listTasks()
+        if (!isCurrentOwner(operationOwnerId)) return { ok: false, message: 'Your session changed before the task finished loading.' }
+        updateTaskState(operationOwnerId, { tasks: rows, loading: false, error: '' })
+        return { ok: true }
+      } catch (cause) { return { ok: false, message: cause.message || 'Unable to reassign task.' } }
     }
-    setTasks((current) => current.map((record) => record.taskId === taskId ? { ...record, assignedTo: workerName } : record))
+    updateTaskState(operationOwnerId, (current) => ({ tasks: current.tasks.map((record) => record.taskId === taskId ? { ...record, assignedTo: workerName } : record) }))
     return { ok: true }
-  }, [tasks, children, profile, cloudEnabled])
+  }, [tasks, children, profile, cloudEnabled, ownerId, isCurrentOwner, updateTaskState])
 
   const setTaskCompletion = useCallback(async (taskId, completed) => {
     if (!hasPermission(PERMISSIONS.MANAGE_OUTREACH, cloudEnabled ? profile : undefined)) return { ok: false, message: 'Your account cannot update outreach tasks.' }
+    const operationOwnerId = ownerId
     const task = tasks.find((record) => record.taskId === taskId)
     if (!task) return { ok: false, message: 'Follow-up task was not found.' }
     const status = completed ? 'Completed' : 'Open'
     if (isSupabaseConfigured) {
-      try { await repository.updateTask(taskId, { status }, children); setTasks(await repository.listTasks()); return { ok: true } }
+      try {
+        await repository.updateTask(taskId, { status }, children)
+        if (!isCurrentOwner(operationOwnerId)) return { ok: false, message: 'Your session changed before the task finished loading.' }
+        const rows = await repository.listTasks()
+        if (!isCurrentOwner(operationOwnerId)) return { ok: false, message: 'Your session changed before the task finished loading.' }
+        updateTaskState(operationOwnerId, { tasks: rows, loading: false, error: '' })
+        return { ok: true }
+      }
       catch (cause) { return { ok: false, message: cause.message || 'Unable to update task.' } }
     }
-    setTasks((current) => current.map((record) => record.taskId === taskId ? { ...record, status, completedAt: completed ? DATA_AS_OF : null } : record))
+    updateTaskState(operationOwnerId, (current) => ({ tasks: current.tasks.map((record) => record.taskId === taskId ? { ...record, status, completedAt: completed ? DATA_AS_OF : null } : record) }))
     return { ok: true }
-  }, [tasks, children, profile, cloudEnabled])
+  }, [tasks, children, profile, cloudEnabled, ownerId, isCurrentOwner, updateTaskState])
 
   const value = useMemo(() => ({ tasks, assignChildToWorker, updateChildDetails, addTask, assignTask, setTaskCompletion, loading, error }), [tasks, assignChildToWorker, updateChildDetails, addTask, assignTask, setTaskCompletion, loading, error])
   return <OutreachContext.Provider value={value}>{appChildren}</OutreachContext.Provider>
