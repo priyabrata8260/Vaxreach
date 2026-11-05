@@ -1,5 +1,7 @@
 export { default as DashboardPage } from './DashboardPage.jsx'
 export { default as ChildrenPage } from './ChildrenPage.jsx'
+export { default as ChildFormPage } from './ChildFormPage.jsx'
+export { default as ChildProfilePage } from './ChildProfilePage.jsx'
 export { default as VaccinationTrackerPage } from './VaccinationTrackerPage.jsx'
 export { default as ASHAWorkersPage } from './ASHAWorkersPage.jsx'
 export { default as OutreachPage } from './OutreachPage.jsx'
