@@ -8,12 +8,16 @@ import StatusBadge from '../components/StatusBadge.jsx'
 import { DATA_AS_OF, VACCINATION_SCHEDULE } from '../data/syntheticChildren.js'
 import { useChildren } from '../hooks/useChildren.js'
 import { hasPermission, PERMISSIONS } from '../utils/permissions.js'
+import { useAuth } from '../hooks/useAuth.js'
+import { workspacePath } from '../utils/accessControl.js'
 
 const formatDate = (value) => new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
 const localityOptions = (children) => [...new Set(children.map((child) => child.locality))].sort()
 
 function VaccinationTrackerPage() {
   const { children, recordDose } = useChildren()
+  const { profile, cloudEnabled } = useAuth()
+  const childPath = (id) => workspacePath(`children/${id}`, profile?.role, cloudEnabled)
   const [search, setSearch] = useState('')
   const [locality, setLocality] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -21,7 +25,7 @@ function VaccinationTrackerPage() {
   const [draftDates, setDraftDates] = useState({})
   const [errors, setErrors] = useState({})
   const [notice, setNotice] = useState('')
-  const canRecord = hasPermission(PERMISSIONS.RECORD_VACCINATION)
+  const canRecord = hasPermission(PERMISSIONS.RECORD_VACCINATION, cloudEnabled ? profile : undefined)
 
   const allRows = useMemo(() => children.flatMap((child) => VACCINATION_SCHEDULE.map((dose) => {
     const scheduledDate = new Date(`${child.dateOfBirth}T00:00:00Z`)
@@ -67,9 +71,9 @@ function VaccinationTrackerPage() {
     setNotice('')
   }
 
-  const recordDoseForRow = (row) => (event) => {
+  const recordDoseForRow = (row) => async (event) => {
     event.preventDefault()
-    const result = recordDose(row.childId, row.doseId, draftDates[row.id] ?? '')
+    const result = await recordDose(row.childId, row.doseId, draftDates[row.id] ?? '')
     if (!result.ok) {
       setErrors((current) => ({ ...current, [row.id]: result.message }))
       return
@@ -80,7 +84,7 @@ function VaccinationTrackerPage() {
   }
 
   const columns = [
-    { key: 'childName', label: 'Child', render: (name, row) => <Link className="tracker-child-link" to={`/children/${row.childId}`}><strong>{name}</strong><small>{row.childId}</small></Link> },
+    { key: 'childName', label: 'Child', render: (name, row) => <Link className="tracker-child-link" to={childPath(row.childId)}><strong>{name}</strong><small>{row.childId}</small></Link> },
     { key: 'locality', label: 'Locality' },
     { key: 'vaccineName', label: 'Vaccine / dose', render: (name, row) => <strong className="tracker-dose-name">{name}<span>Dose {row.doseNumber}</span></strong> },
     { key: 'scheduledDateLabel', label: 'Scheduled date' },
@@ -97,7 +101,7 @@ function VaccinationTrackerPage() {
 
   return <section className="tracker-page" aria-labelledby="page-title">
     <div className="page-heading dashboard-heading"><div><p className="eyebrow">VAXREACH WORKSPACE <span className="eyebrow-separator">/</span> AS OF {new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${DATA_AS_OF}T00:00:00Z`)).toUpperCase()}</p><h1 id="page-title">Vaccination tracker</h1><p className="page-description">Review every scheduled dose and record completed vaccinations.</p></div><span className="tracker-schedule-label"><Syringe size={15} /> {VACCINATION_SCHEDULE.length}-dose sample schedule</span></div>
-    <div className="demo-notice"><span className="demo-indicator" /> Prototype access: Health worker <span className="demo-divider">·</span> Changes update this browser’s registry</div>
+    <div className="demo-notice"><span className="demo-indicator" /> Prototype access: Administrator <span className="demo-divider">·</span> Changes update this browser’s registry</div>
     <div className="stat-grid stat-grid--three">{statCards.map((stat) => <StatCard key={stat.label} {...stat} value={new Intl.NumberFormat('en-IN').format(stat.value)} />)}</div>
     {notice && <p className="tracker-notice" role="status"><CheckCheck size={15} />{notice}</p>}
     <div className="tracker-filters"><label className="search-field"><Syringe size={16} /><span className="sr-only">Search child name or ID</span><input type="search" placeholder="Search child name or ID" value={search} onChange={(event) => setSearch(event.target.value)} /></label><label className="filter-field"><span>Locality</span><select value={locality} onChange={(event) => setLocality(event.target.value)}><option value="">All localities</option>{localityOptions(children).map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="filter-field"><span>Dose status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">All statuses</option><option>Completed</option><option>Pending</option><option>Overdue</option></select></label></div>

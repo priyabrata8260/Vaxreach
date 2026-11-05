@@ -1,17 +1,23 @@
 import { useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Save } from 'lucide-react'
-import { DATA_AS_OF, VACCINATION_SCHEDULE } from '../data/syntheticChildren.js'
+import { ASHA_WORKER_ROSTER, DATA_AS_OF, VACCINATION_SCHEDULE } from '../data/syntheticChildren.js'
 import { useChildren } from '../hooks/useChildren.js'
+import { useOutreach } from '../hooks/useOutreach.js'
+import { useAuth } from '../hooks/useAuth.js'
+import { workspacePath } from '../utils/accessControl.js'
 
 function ChildFormPage() {
   const { childId } = useParams()
   const navigate = useNavigate()
-  const { children, addChild, updateChild } = useChildren()
+  const { children, addChild } = useChildren()
+  const { updateChildDetails } = useOutreach()
+  const { profile, cloudEnabled } = useAuth()
+  const path = (target) => workspacePath(target, profile?.role, cloudEnabled)
   const existing = childId ? children.find((child) => child.childId === childId) : null
   const isEditing = Boolean(childId)
   const localities = useMemo(() => [...new Set(children.map((child) => child.locality))].sort(), [children])
-  const workers = useMemo(() => [...new Set(children.map((child) => child.assignedAshaWorker))].sort(), [children])
+  const workers = ASHA_WORKER_ROSTER.map((worker) => worker.name)
   const [form, setForm] = useState(() => ({
     name: existing?.name ?? '',
     dateOfBirth: existing?.dateOfBirth ?? '',
@@ -23,14 +29,14 @@ function ChildFormPage() {
   }))
   const [error, setError] = useState('')
 
-  if (isEditing && !existing) return <Navigate to="/children" replace />
+  if (isEditing && !existing) return <Navigate to={path('children')} replace />
 
   const setField = (event) => {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     const name = form.name.trim()
     if (name.length < 2) return setError('Enter a child name with at least two characters.')
@@ -50,15 +56,15 @@ function ChildFormPage() {
     }
 
     const details = { ...form, name }
-    const savedChild = existing
-      ? updateChild(existing.childId, details)
-      : addChild({ ...details, vaccinationHistory: [] })
+    const updateResult = existing ? await updateChildDetails(existing.childId, details) : null
+    if (updateResult && !updateResult.ok) return setError(updateResult.message)
+    const savedChild = existing ? updateResult.child : await addChild({ ...details, vaccinationHistory: [] })
     if (!savedChild) return setError('The child record could not be saved. Please try again.')
-    navigate(`/children/${savedChild.childId}`)
+    navigate(path(`children/${savedChild.childId}`))
   }
 
   return <section className="child-form-page" aria-labelledby="page-title">
-    <Link className="back-link" to={existing ? `/children/${existing.childId}` : '/children'}><ArrowLeft size={16} /> {existing ? 'Back to profile' : 'Child registry'}</Link>
+    <Link className="back-link" to={existing ? path(`children/${existing.childId}`) : path('children')}><ArrowLeft size={16} /> {existing ? 'Back to profile' : 'Child registry'}</Link>
     <div className="page-heading form-heading"><div><p className="eyebrow">CHILD REGISTRY</p><h1 id="page-title">{existing ? 'Edit child information' : 'Register a child'}</h1><p className="page-description">{existing ? `Update the registry details for ${existing.name}.` : 'Add a fictional child record to the local prototype registry.'}</p></div></div>
     <form className="child-form" onSubmit={handleSubmit} noValidate>
       <div className="form-section-heading"><h2>Child details</h2><p>Fields marked required must be completed.</p></div>
@@ -74,7 +80,7 @@ function ChildFormPage() {
       {existing && <div className="form-note">Vaccination history is preserved when registry information is edited. Change the date of birth only when the recorded dose dates remain valid for the sample schedule.</div>}
       {!existing && <div className="form-note">A unique child ID will be assigned automatically. No vaccination doses are prefilled; due, pending and overdue doses are calculated from the sample schedule.</div>}
       {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="form-actions"><Link className="secondary-action" to={existing ? `/children/${existing.childId}` : '/children'}>Cancel</Link><button className="primary-action" type="submit"><Save size={16} /> {existing ? 'Save changes' : 'Register child'}</button></div>
+      <div className="form-actions"><Link className="secondary-action" to={existing ? path(`children/${existing.childId}`) : path('children')}>Cancel</Link><button className="primary-action" type="submit"><Save size={16} /> {existing ? 'Save changes' : 'Register child'}</button></div>
     </form>
     <p className="data-disclaimer">Local prototype only. Records are stored in this browser and do not sync to a server.</p>
   </section>

@@ -7,6 +7,7 @@ import StatCard from '../components/StatCard.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import { DATA_AS_OF, deriveDashboardData } from '../data/dashboard.js'
 import { useChildren } from '../hooks/useChildren.js'
+import { useAuth } from '../hooks/useAuth.js'
 
 const numberFormat = new Intl.NumberFormat('en-IN')
 const dateLabel = new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${DATA_AS_OF}T00:00:00Z`))
@@ -32,6 +33,7 @@ const followUpColumns = [
 
 function DashboardPage() {
   const { children } = useChildren()
+  const { profile, cloudEnabled } = useAuth()
   const { dashboardSummary, localityCoverage, monthlyVaccinationTrend, recentVaccinationActivity, immediateFollowUps } = useMemo(() => deriveDashboardData(children), [children])
   const statCards = [
     { label: 'Registered children', value: dashboardSummary.totalChildren, note: `Across ${localityCoverage.length} service areas`, Icon: Users, tone: 'blue' },
@@ -42,8 +44,8 @@ function DashboardPage() {
     { label: 'Vaccination coverage', value: `${dashboardSummary.coveragePercentage}%`, note: `${dashboardSummary.fullyImmunised} of ${dashboardSummary.totalChildren} children`, Icon: UsersRound, tone: 'green' },
   ]
   return <section className="dashboard-page" aria-labelledby="page-title">
-    <div className="page-heading dashboard-heading"><div><p className="eyebrow">PROGRAMME OVERVIEW <span className="eyebrow-separator">/</span> AS OF {dateLabel.toUpperCase()}</p><h1 id="page-title">Immunisation dashboard</h1><p className="page-description">Coverage, upcoming doses and follow-up priorities across your service areas.</p></div><div className="location-chip"><MapPin size={15} /><span>All service areas</span></div></div>
-    <div className="demo-notice"><span className="demo-indicator" /> Synthetic demo data <span className="demo-divider">·</span> Not linked to patient records</div>
+    <div className="page-heading dashboard-heading"><div><p className="eyebrow">{profile?.role === 'asha_worker' ? 'MY FIELD WORK' : 'PROGRAMME OVERVIEW'} <span className="eyebrow-separator">/</span> AS OF {dateLabel.toUpperCase()}</p><h1 id="page-title">{profile?.role === 'asha_worker' ? 'My immunisation dashboard' : 'Immunisation dashboard'}</h1><p className="page-description">{profile?.role === 'asha_worker' ? 'Your assigned children, vaccination coverage and follow-up priorities.' : 'Coverage, upcoming doses and follow-up priorities across your service areas.'}</p></div><div className="location-chip"><MapPin size={15} /><span>{profile?.role === 'asha_worker' ? [...new Set(children.map((child) => child.locality))].join(', ') || 'My assigned localities' : 'All service areas'}</span></div></div>
+    <div className="demo-notice"><span className="demo-indicator" /> Synthetic demonstration data <span className="demo-divider">·</span> {cloudEnabled ? 'Access scoped by your account role' : 'Local prototype data'}</div>
     <div className="stat-grid stat-grid--six">{statCards.map((stat) => <StatCard key={stat.label} {...stat} value={typeof stat.value === 'number' ? numberFormat.format(stat.value) : stat.value} />)}</div>
     <div className="chart-grid"><LocalityCoverageChart localities={localityCoverage} /><MonthlyTrendChart months={monthlyVaccinationTrend} /></div>
     <div className="table-grid"><DataTable title="Recent vaccination activity" description="Latest recorded doses in the demo dataset" columns={activityColumns} rows={recentVaccinationActivity} caption="Recent synthetic vaccination activity" /><DataTable title="Children requiring follow-up" description="Overdue doses, migrated families and unreachable households" columns={followUpColumns} rows={immediateFollowUps} caption="Synthetic child records requiring follow-up" /></div>

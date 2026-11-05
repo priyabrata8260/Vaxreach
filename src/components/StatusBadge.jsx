@@ -11,6 +11,12 @@ const statusClasses = {
   'Up to date': 'status-badge--complete',
   'Migrated out': 'status-badge--follow-up',
   Resident: 'status-badge--complete',
+  Reachable: 'status-badge--complete',
+  Open: 'status-badge--scheduled',
+  Upcoming: 'status-badge--scheduled',
+  High: 'status-badge--overdue',
+  Medium: 'status-badge--follow-up',
+  'No task': 'status-badge--pending',
 }
 
 function StatusBadge({ status }) {

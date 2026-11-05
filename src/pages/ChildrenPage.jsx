@@ -5,12 +5,18 @@ import DataTable from '../components/DataTable.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import { DATA_AS_OF, VACCINATION_SCHEDULE } from '../data/syntheticChildren.js'
 import { useChildren } from '../hooks/useChildren.js'
+import { useAuth } from '../hooks/useAuth.js'
+import { hasPermission, PERMISSIONS } from '../utils/permissions.js'
+import { workspacePath } from '../utils/accessControl.js'
 
 const upcomingCutoff = new Date(`${DATA_AS_OF}T00:00:00Z`)
 upcomingCutoff.setUTCDate(upcomingCutoff.getUTCDate() + 30)
 
 function ChildrenPage() {
   const { children } = useChildren()
+  const { profile, cloudEnabled } = useAuth()
+  const path = (target) => workspacePath(target, profile?.role, cloudEnabled)
+  const canEditRegistry = hasPermission(PERMISSIONS.MANAGE_ASSIGNMENTS, cloudEnabled ? profile : undefined)
   const [search, setSearch] = useState('')
   const [locality, setLocality] = useState('')
   const [vaccinationStatus, setVaccinationStatus] = useState('')
@@ -45,11 +51,11 @@ function ChildrenPage() {
     { key: 'completedDoseCount', label: 'Doses', render: (count, child) => <div className="dose-progress"><strong>{count} / {VACCINATION_SCHEDULE.length}</strong><small>{child.overdueDoses.length ? `${child.overdueDoses.length} overdue` : `${child.pendingDoses.length} pending`}</small></div> },
     { key: 'followUpStatus', label: 'Follow-up', render: (status) => <StatusBadge status={status} /> },
     { key: 'migrationStatus', label: 'Migration', render: (status) => <StatusBadge status={status} /> },
-    { key: 'actions', label: 'Actions', render: (_, child) => <div className="registry-actions"><Link to={`/children/${child.childId}`}>View</Link><Link to={`/children/${child.childId}/edit`}>Edit</Link></div> },
+    { key: 'actions', label: 'Actions', render: (_, child) => <div className="registry-actions"><Link to={path(`children/${child.childId}`)}>View</Link>{canEditRegistry && <Link to={path(`children/${child.childId}/edit`)}>Edit</Link>}</div> },
   ]
 
   return <section className="registry-page" aria-labelledby="page-title">
-    <div className="page-heading"><div><p className="eyebrow">VAXREACH WORKSPACE</p><h1 id="page-title">Child registry</h1><p className="page-description">Search and manage registered children and their immunisation records.</p></div><Link className="primary-action" to="/children/new"><Plus size={17} /> Add child</Link></div>
+    <div className="page-heading"><div><p className="eyebrow">VAXREACH WORKSPACE</p><h1 id="page-title">{profile?.role === 'asha_worker' ? 'My assigned children' : 'Child registry'}</h1><p className="page-description">{profile?.role === 'asha_worker' ? 'Children assigned to your ASHA worker account.' : 'Search and manage registered children and their immunisation records.'}</p></div>{canEditRegistry && <Link className="primary-action" to={path('children/new')}><Plus size={17} /> Add child</Link>}</div>
     <div className="registry-summary"><span className="registry-summary-icon">{children.length}</span><span><strong>Registered children</strong><small>All records are stored in this browser’s prototype registry.</small></span><span className="synthetic-pill">Synthetic demo data</span></div>
     <div className="registry-filters" aria-label="Filter child records">
       <label className="search-field"><Search size={17} /><span className="sr-only">Search by child name or ID</span><input type="search" placeholder="Search name or child ID" value={search} onChange={(event) => setSearch(event.target.value)} /></label>

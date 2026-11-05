@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DATA_AS_OF, createChildRecord, syntheticChildren, VACCINATION_SCHEDULE } from '../data/syntheticChildren.js'
 import { ChildrenContext } from './childrenContext.js'
 import { hasPermission, PERMISSIONS, PROTOTYPE_USER } from '../utils/permissions.js'
+import { useAuth } from './useAuth.js'
+import { isSupabaseConfigured } from '../lib/supabase.js'
+import * as repository from '../lib/supabaseRepository.js'
 
 const REGISTRY_STORAGE_KEY = 'vaxreach-child-registry-v1'
 function readRegistry() {
@@ -32,10 +35,29 @@ function isValidISODate(value) {
 }
 
 export function ChildrenProvider({ children: appChildren }) {
-  const [children, setChildren] = useState(readRegistry)
+  const { session, profile, cloudEnabled } = useAuth()
+  const [children, setChildren] = useState(() => isSupabaseConfigured ? [] : readRegistry())
+  const [loading, setLoading] = useState(isSupabaseConfigured)
+  const [error, setError] = useState('')
+  const loadRequest = useRef(0)
   const recordedDoseKeys = useRef(new Set(children.flatMap((child) => child.vaccinationHistory.map((dose) => `${child.childId}:${dose.id}`))))
 
   useEffect(() => {
+    if (!isSupabaseConfigured) return undefined
+    if (!session) return undefined
+    const requestId = ++loadRequest.current
+    repository.listChildren().then((rows) => {
+      if (requestId !== loadRequest.current) return
+      setChildren(rows)
+      setError('')
+      recordedDoseKeys.current = new Set(rows.flatMap((child) => child.vaccinationHistory.map((dose) => `${child.childId}:${dose.id}`)))
+    }).catch((cause) => { if (requestId === loadRequest.current) setError(cause.message || 'Unable to load child records.') })
+      .finally(() => { if (requestId === loadRequest.current) setLoading(false) })
+    return () => { loadRequest.current += 1 }
+  }, [session])
+
+  useEffect(() => {
+    if (isSupabaseConfigured) return
     try {
       window.localStorage.setItem(REGISTRY_STORAGE_KEY, JSON.stringify(children))
     } catch {
@@ -43,22 +65,38 @@ export function ChildrenProvider({ children: appChildren }) {
     }
   }, [children])
 
-  const addChild = useCallback((details) => {
+  const addChild = useCallback(async (details) => {
+    if (!hasPermission(PERMISSIONS.MANAGE_ASSIGNMENTS, cloudEnabled ? profile : undefined)) return null
     const child = createChildRecord({ ...details, childId: nextChildId(children) })
+    if (isSupabaseConfigured) {
+      try {
+        await repository.createChild({ ...details, childId: child.childId }, session.user.id)
+        const rows = await repository.listChildren(); setChildren(rows)
+        return rows.find((row) => row.childId === child.childId) ?? child
+      } catch (cause) { setError(cause.message || 'Unable to save child.'); return null }
+    }
     setChildren((current) => [child, ...current])
     return child
-  }, [children])
+  }, [children, session, profile, cloudEnabled])
 
-  const updateChild = useCallback((childId, details) => {
+  const updateChild = useCallback(async (childId, details) => {
+    if (!hasPermission(PERMISSIONS.MANAGE_ASSIGNMENTS, cloudEnabled ? profile : undefined)) return null
     const currentChild = children.find((child) => child.childId === childId)
     if (!currentChild) return null
     const updatedChild = createChildRecord({ ...currentChild, ...details, childId })
+    if (isSupabaseConfigured) {
+      try {
+        await repository.updateChild(childId, { ...currentChild, ...details })
+        const rows = await repository.listChildren(); setChildren(rows)
+        return rows.find((row) => row.childId === childId) ?? updatedChild
+      } catch (cause) { setError(cause.message || 'Unable to update child.'); return null }
+    }
     setChildren((current) => current.map((child) => child.childId === childId ? updatedChild : child))
     return updatedChild
-  }, [children])
+  }, [children, profile, cloudEnabled])
 
-  const recordDose = useCallback((childId, doseId, administeredDate) => {
-    if (!hasPermission(PERMISSIONS.RECORD_VACCINATION)) return { ok: false, message: 'Your prototype role cannot record vaccinations.' }
+  const recordDose = useCallback(async (childId, doseId, administeredDate) => {
+    if (!hasPermission(PERMISSIONS.RECORD_VACCINATION, cloudEnabled ? profile : undefined)) return { ok: false, message: 'Your account cannot record vaccinations.' }
     const child = children.find((record) => record.childId === childId)
     if (!child) return { ok: false, message: 'Child record was not found.' }
     const dose = VACCINATION_SCHEDULE.find((item) => item.id === doseId)
@@ -81,11 +119,19 @@ export function ChildrenProvider({ children: appChildren }) {
       recordedBy: PROTOTYPE_USER.displayName,
     }]
     const updatedChild = createChildRecord({ ...child, vaccinationHistory })
+    if (isSupabaseConfigured) {
+      try {
+        await repository.recordVaccination(child, doseId, administeredDate, session.user.id)
+        const rows = await repository.listChildren(); setChildren(rows)
+        recordedDoseKeys.current.add(recordKey)
+        return { ok: true, child: rows.find((row) => row.childId === childId) ?? updatedChild }
+      } catch (cause) { return { ok: false, message: cause.message || 'Unable to save vaccination.' } }
+    }
     recordedDoseKeys.current.add(recordKey)
     setChildren((current) => current.map((record) => record.childId === childId ? updatedChild : record))
     return { ok: true, child: updatedChild }
-  }, [children])
+  }, [children, session, profile, cloudEnabled])
 
-  const value = useMemo(() => ({ children, addChild, updateChild, recordDose }), [children, addChild, updateChild, recordDose])
+  const value = useMemo(() => ({ children, addChild, updateChild, recordDose, loading, error, refreshChildren: async () => { if (isSupabaseConfigured && session) setChildren(await repository.listChildren()) } }), [children, addChild, updateChild, recordDose, loading, error, session])
   return <ChildrenContext.Provider value={value}>{appChildren}</ChildrenContext.Provider>
 }

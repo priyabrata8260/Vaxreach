@@ -11,8 +11,9 @@ export const VACCINATION_SCHEDULE = [
 
 const FIRST_NAMES = ['Aarav', 'Anaya', 'Ishaan', 'Myra', 'Kabir', 'Zoya', 'Vivaan', 'Sara', 'Reyansh', 'Kiara', 'Advik', 'Aadhya']
 const FAMILY_INITIALS = ['Sen', 'Kapoor', 'Rao', 'Patel', 'Nair', 'Khan', 'Das', 'Iyer', 'Bose', 'Shah']
-const LOCALITIES = ['North Ward', 'River Side', 'East Colony', 'South Market', 'Central Park', 'Lake View', 'Hill Block', 'Garden Enclave']
-const ASHA_WORKERS = ['Meena S.', 'Asha P.', 'Lata D.', 'Rekha B.', 'Rupa K.', 'Saira M.', 'Nirmala T.', 'Kavita R.', 'Farida A.', 'Sunita J.', 'Poonam C.', 'Anjali V.']
+export const LOCALITIES = ['North Ward', 'River Side', 'East Colony', 'South Market', 'Central Park', 'Lake View', 'Hill Block', 'Garden Enclave']
+export const ASHA_WORKER_NAMES = ['Meena S.', 'Asha P.', 'Lata D.', 'Rekha B.', 'Rupa K.', 'Saira M.', 'Nirmala T.', 'Kavita R.', 'Farida A.', 'Sunita J.', 'Poonam C.', 'Anjali V.']
+export const ASHA_WORKER_ROSTER = ASHA_WORKER_NAMES.map((name, index) => ({ workerId: `ASHA-${String(index + 1).padStart(3, '0')}`, name }))
 const AS_OF = new Date(`${DATA_AS_OF}T00:00:00Z`)
 const DAY_MS = 86_400_000
 
@@ -112,7 +113,7 @@ function makeChild(index) {
   const registrationOffset = (index * 19) % (ageDays + 1)
   const registrationDate = isoDate(addDays(new Date(`${dateOfBirth}T00:00:00Z`), registrationOffset))
   const locality = LOCALITIES[index % LOCALITIES.length]
-  const ashaWorker = ASHA_WORKERS[(index * 5 + Math.floor(index / LOCALITIES.length)) % ASHA_WORKERS.length]
+  const ashaWorker = ASHA_WORKER_NAMES[(index * 5 + Math.floor(index / LOCALITIES.length)) % ASHA_WORKER_NAMES.length]
   const childId = `VXR-${String(index + 1).padStart(4, '0')}`
   const migrationStatus = index % 19 === 7 ? 'Migrated out' : 'Resident'
   const familyReachability = migrationStatus === 'Resident' && index % 17 === 5 ? 'Unreachable' : 'Reachable'
