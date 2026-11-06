@@ -7,6 +7,7 @@ import { DATA_AS_OF, VACCINATION_SCHEDULE } from '../data/syntheticChildren.js'
 import { useAuth } from '../hooks/useAuth.js'
 import { useChildren } from '../hooks/useChildren.js'
 import { useOutreach } from '../hooks/useOutreach.js'
+import { EmptyState } from '../components/ui.jsx'
 
 const numberFormat = new Intl.NumberFormat('en-IN')
 const dateLabel = new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${DATA_AS_OF}T00:00:00Z`))
@@ -136,7 +137,7 @@ export function WorkspaceSettingsPage() {
 }
 
 function EmptyWorkspace({ icon: Icon, title, text }) {
-  return <div className="workspace-empty"><span><Icon size={21} /></span><h2>{title}</h2><p>{text}</p></div>
+  return <EmptyState Icon={Icon} title={title} description={text} />
 }
 
 function deriveLocalityStats(children) {

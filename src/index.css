@@ -92,7 +92,7 @@ td:first-child { color: #33445a; font-weight: 600; }
 .stat-grid--three .stat-card { min-height: 132px; }
 .tracker-schedule-label { display: inline-flex; align-items: center; gap: 8px; padding: 9px 11px; border: 1px solid #e0e9eb; border-radius: 8px; background: #fff; color: #5a7183; font-size: 10px; font-weight: 600; }
 .tracker-schedule-label svg { color: #087f78; }
-.tracker-filters { display: grid; grid-template-columns: minmax(230px, 1.5fr) repeat(2, minmax(170px, 1fr)); gap: 11px; margin: 0 0 14px; padding: 13px; border: 1px solid #e5ebef; border-radius: 10px; background: #fff; }
+.tracker-filters { display: grid; grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(140px, 1fr)); gap: 11px; margin: 0 0 14px; padding: 13px; border: 1px solid #e5ebef; border-radius: 10px; background: #fff; }
 .tracker-page .data-panel { min-width: 0; }
 .tracker-page .panel-heading { min-height: 68px; }
 .tracker-page .table-scroll { max-height: 640px; overflow: auto; }
@@ -103,6 +103,18 @@ td:first-child { color: #33445a; font-weight: 600; }
 .tracker-child-link small { color: #8996a5; font-size: 9px; }
 .tracker-dose-name { display: grid; gap: 3px; color: #40546a; font-size: 10px; }
 .tracker-dose-name span { color: #8996a5; font-size: 9px; font-weight: 500; }
+.tracker-status { display: grid; justify-items: start; gap: 4px; }
+.tracker-status small { color: #9a6b38; font-size: 9px; }
+.tracker-row-actions { min-width: 115px; }
+.tracker-history { margin-top: 14px; }
+.vaccination-detail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.vaccination-detail > div { display: grid; align-content: start; gap: 5px; }
+.vaccination-detail small { color: #8593a2; font-size: 10px; }
+.vaccination-detail strong, .vaccination-detail a { color: #35475c; font-size: 12px; font-weight: 600; }
+.correction-field { grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid #edf1f3; }
+.correction-field label { color: #52647a; font-size: 11px; font-weight: 600; }
+.correction-field input { display: block; width: 100%; height: 40px; margin: 8px 0 5px; padding: 0 10px; border: 1px solid #dfe7eb; border-radius: 7px; background: #fff; color: #394b60; font: 12px 'DM Sans', sans-serif; }
+.correction-field > small { color: #8492a2; font-size: 9px; }
 .dose-action-complete { display: inline-flex; align-items: center; gap: 5px; color: #43825f; font-size: 9px; font-weight: 600; }
 .dose-action-readonly { color: #98a3ae; font-size: 9px; }
 .dose-record-trigger { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border: 1px solid #d8e9e5; border-radius: 6px; background: #f5faf8; color: #08766d; font-size: 9px; font-weight: 700; cursor: pointer; }
@@ -118,8 +130,8 @@ td:first-child { color: #33445a; font-weight: 600; }
 .dose-entry-error { display: flex; align-items: flex-start; gap: 4px; color: #a74e43; font-size: 8px; line-height: 1.4; white-space: normal; }
 .dose-entry-error svg { flex: 0 0 auto; }
 .tracker-notice { display: flex; align-items: center; gap: 7px; margin: 0 0 13px; padding: 10px 12px; border: 1px solid #dcece5; border-radius: 7px; background: #f1f8f4; color: #367b59; font-size: 10px; }
-@media (max-width: 850px) { .tracker-filters { grid-template-columns: minmax(200px, 1fr) 1fr; } .tracker-filters .search-field { grid-column: 1 / -1; } }
-@media (max-width: 680px) { .tracker-page .page-heading { flex-direction: column; align-items: flex-start; } .tracker-schedule-label { align-self: flex-start; } .stat-grid--three { grid-template-columns: 1fr; gap: 9px; } .stat-grid--three .stat-card { display: grid; grid-template-columns: 39px 1fr; min-height: 78px; align-items: center; column-gap: 11px; padding: 11px 13px; } .stat-grid--three .stat-icon { grid-row: 1 / span 2; margin: 0; } .stat-grid--three .stat-label { align-self: end; margin: 0; } .stat-grid--three .stat-value { grid-column: 2; grid-row: 2; margin: 2px 0 0; font-size: 20px; } .stat-grid--three .stat-note { grid-column: 2; grid-row: 3; margin-top: -1px; } .tracker-filters { grid-template-columns: 1fr; } .tracker-filters .search-field { grid-column: auto; } .tracker-page .table-scroll { max-height: 70vh; } }
+@media (max-width: 1050px) { .tracker-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tracker-filters .search-field { grid-column: 1 / -1; } }
+@media (max-width: 680px) { .tracker-page .page-heading { flex-direction: column; align-items: flex-start; } .tracker-schedule-label { align-self: flex-start; } .stat-grid--three { grid-template-columns: 1fr; gap: 9px; } .stat-grid--three .stat-card { display: grid; grid-template-columns: 39px 1fr; min-height: 78px; align-items: center; column-gap: 11px; padding: 11px 13px; } .stat-grid--three .stat-icon { grid-row: 1 / span 2; margin: 0; } .stat-grid--three .stat-label { align-self: end; margin: 0; } .stat-grid--three .stat-value { grid-column: 2; grid-row: 2; margin: 2px 0 0; font-size: 20px; } .stat-grid--three .stat-note { grid-column: 2; grid-row: 3; margin-top: -1px; } .tracker-filters { grid-template-columns: 1fr; } .tracker-filters .search-field { grid-column: auto; } .tracker-page .table-scroll { max-height: 70vh; } .vaccination-detail { grid-template-columns: 1fr; } .correction-field { grid-column: auto; } }
 .status-badge--pending { color: #778397; background: #f1f3f5; }
 .summary-panel { padding: 18px; }
 .summary-icon { display: grid; width: 34px; height: 34px; place-items: center; margin-bottom: 15px; border-radius: 9px; background: #e9f5f2; color: #087f78; }
@@ -190,7 +202,7 @@ td:first-child { color: #33445a; font-weight: 600; }
 .registry-summary strong { color: #34465b; font-size: 11px; }
 .registry-summary small { color: #8a97a5; font-size: 10px; }
 .synthetic-pill { margin-left: auto; padding: 6px 8px; border-radius: 6px; background: #fbf4e9; color: #9b7138; font-size: 9px; font-weight: 600; }
-.registry-filters { display: grid; grid-template-columns: minmax(210px, 1.6fr) repeat(3, minmax(145px, 1fr)); gap: 10px; margin-bottom: 15px; padding: 13px; border: 1px solid #e5ebef; border-radius: 10px; background: #fff; }
+.registry-filters { display: grid; grid-template-columns: minmax(210px, 1.6fr) repeat(4, minmax(130px, 1fr)); gap: 10px; margin-bottom: 15px; padding: 13px; border: 1px solid #e5ebef; border-radius: 10px; background: #fff; }
 .search-field { display: flex; min-width: 0; height: 38px; align-items: center; gap: 9px; padding: 0 10px; border: 1px solid #e2e9ec; border-radius: 7px; color: #8593a2; }
 .search-field:focus-within { border-color: #79b8a8; box-shadow: 0 0 0 3px rgb(8 127 120 / 9%); }
 .search-field input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #33445a; font-size: 10px; }
@@ -254,6 +266,18 @@ td:first-child { color: #33445a; font-weight: 600; }
 
 /* ASHA worker profiles and outreach administration */
 .asha-overview-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.worker-directory-filters { display: grid; grid-template-columns: minmax(230px, 1.6fr) repeat(2, minmax(170px, 1fr)); gap: 11px; margin: 0 0 14px; padding: 13px; border: 1px solid #e5ebef; border-radius: 10px; background: #fff; }
+.worker-profile-actions { display: flex; align-items: center; gap: 10px; }
+.worker-inactive { background: #fff1ed; color: #a24d3b; }
+.worker-identification-card { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 0 0 15px; overflow: hidden; border: 1px solid #e5ebef; border-radius: 10px; background: #e8eef0; }
+.worker-identification-card > div { display: grid; gap: 6px; padding: 14px; background: #fff; }
+.worker-identification-card small, .worker-editor-code small { color: #8492a2; font-size: 9px; }
+.worker-identification-card strong, .worker-editor-code strong { color: #35475c; font-size: 11px; }
+.worker-editor-form { display: grid; gap: 14px; }
+.worker-editor-code { display: grid; gap: 5px; padding: 10px; border-radius: 7px; background: #f6f9f9; }
+.worker-active-field { display: flex; align-items: center; gap: 8px; color: #52647a; font-size: 11px; }
+.worker-active-field input { accent-color: #087f78; }
+.worker-security-note { margin: 0; padding: 10px 12px; border: 1px solid #dcebe6; border-radius: 7px; background: #f4faf7; color: #59756c; font-size: 10px; line-height: 1.5; }
 .asha-page .data-panel, .asha-profile-page .data-panel { min-width: 0; }
 .asha-page .table-scroll, .asha-profile-page .table-scroll { overflow-x: auto; }
 .asha-page table { min-width: 1060px; }
@@ -298,8 +322,8 @@ td:first-child { color: #33445a; font-weight: 600; }
 .task-toggle--reopen { border-color: #e0e7eb; background: #fff; color: #65778a; }
 .task-readonly { color: #99a4ae; font-size: 9px; }
 .asha-profile-page > .data-disclaimer { margin-top: 14px; }
-@media (max-width: 1100px) { .asha-overview-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-create-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-create-form .primary-action { justify-self: start; } }
-@media (max-width: 680px) { .asha-overview-stats { grid-template-columns: 1fr; } .asha-profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .worker-profile-heading { align-items: flex-start; flex-direction: column; } .worker-inline-form { align-items: stretch; flex-direction: column; } .worker-inline-form .filter-field { width: 100%; } .task-create-form { grid-template-columns: 1fr; } .task-create-form .primary-action { justify-self: stretch; } .worker-management-panel { padding: 14px; } }
+@media (max-width: 1100px) { .asha-overview-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .worker-directory-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } .worker-directory-filters .search-field { grid-column: 1 / -1; } .worker-identification-card { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-create-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-create-form .primary-action { justify-self: start; } }
+@media (max-width: 680px) { .asha-overview-stats { grid-template-columns: 1fr; } .asha-profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .worker-profile-heading { align-items: flex-start; flex-direction: column; } .worker-profile-actions { flex-wrap: wrap; } .worker-directory-filters { grid-template-columns: 1fr; } .worker-directory-filters .search-field { grid-column: auto; } .worker-identification-card { grid-template-columns: 1fr 1fr; } .worker-inline-form { align-items: stretch; flex-direction: column; } .worker-inline-form .filter-field { width: 100%; } .task-create-form { grid-template-columns: 1fr; } .task-create-form .primary-action { justify-self: stretch; } .worker-management-panel { padding: 14px; } }
 
 /* Outreach risk queue, locality summaries and task workflow */
 .outreach-stat-grid { margin-bottom: 15px; }
@@ -368,6 +392,30 @@ td:first-child { color: #33445a; font-weight: 600; }
 .outreach-task-form { grid-template-columns: minmax(180px, 1.2fr) minmax(200px, 1.6fr) minmax(160px, 1fr) minmax(130px, .8fr) minmax(90px, .6fr) auto; }
 .outreach-task-form-panel .worker-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .outreach-task-form-panel .worker-panel-heading .task-toggle { flex: 0 0 auto; }
+.sidebar-logout { width: 100%; margin-top: auto; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.sidebar-logout:hover { color: var(--green-dark); background: #f4f8f5; }
+.task-filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.task-filter-bar .task-toggle--active { border-color: #8fc2b4; background: #e7f3ee; color: #17694f; }
+.assigned-task-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(245px,1fr)); gap: 12px; }
+.assigned-task-card { display: grid; align-content: start; gap: 12px; padding: 16px; border: 1px solid #e4eceb; border-radius: 10px; background: #fff; box-shadow: 0 3px 14px rgb(36 63 73 / 4%); }
+.assigned-task-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.assigned-task-card-heading .chart-kicker { margin: 0 0 5px; }
+.assigned-task-card-heading h3 { margin: 0; color: #304459; font-size: 14px; line-height: 1.4; }
+.assigned-task-child { display: grid; gap: 3px; margin: 0; font-size: 12px; }
+.assigned-task-child a,.asha-activity-list a { color: #16745f; font-weight: 700; text-decoration: none; }
+.assigned-task-child span,.assigned-task-meta { color: #81909c; font-size: 11px; }
+.assigned-task-meta { display: flex; flex-wrap: wrap; gap: 14px; }
+.assigned-task-meta strong { color: #536678; }
+.assigned-task-card .secondary-action { justify-self: start; }
+.outreach-empty-state { padding: 24px; color: #7b8995; text-align: center; }
+.asha-activity-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.asha-activity-list li { display: grid; gap: 5px; padding: 13px 0; border-bottom: 1px solid #edf1f2; color: #66798a; font-size: 12px; }
+.asha-activity-list li:last-child { border-bottom: 0; }
+.asha-activity-list li > strong { color: #33495e; }
+.asha-activity-list small { color: #8795a1; font-size: 10px; }
+.assigned-task-detail { display: grid; gap: 12px; }
+.assigned-task-detail > p { margin: 0; color: #637587; font-size: 12px; }
+.assigned-task-detail textarea { min-height: 76px; resize: vertical; }
 .outreach-page .data-disclaimer { margin-top: 12px; line-height: 1.5; }
 @media (max-width: 1120px) { .outreach-chart-layout { grid-template-columns: minmax(0, 1fr); } .outreach-method-panel { display: grid; grid-template-columns: 42px 1fr; column-gap: 12px; align-items: center; } .outreach-method-icon { grid-row: 1 / span 2; margin: 0; } .outreach-method-panel .chart-kicker { align-self: end; margin-bottom: 2px; } .outreach-method-panel h2 { grid-column: 2; margin-bottom: 0; } .outreach-method-panel > p:not(.chart-kicker), .outreach-method-stat { grid-column: 1 / -1; } .outreach-task-form { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 850px) { .outreach-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } .outreach-filters .search-field { grid-column: 1 / -1; } }

@@ -34,10 +34,10 @@ using ((select public.is_vaxreach_admin()) or exists (
 
 drop policy if exists "vaccination records visible with child" on public.vaccination_records;
 create policy "users read vaccination records for visible children" on public.vaccination_records for select to authenticated
-using (exists(select 1 from public.children c where c.id = child_id));
+using (exists(select 1 from public.children c where c.id = vaccination_records.child_id));
 drop policy if exists "authorized workers record vaccination" on public.vaccination_records;
 create policy "admins or assigned ASHA workers record vaccination" on public.vaccination_records for insert to authenticated
-with check (exists(select 1 from public.children c where c.id = child_id and (
+with check (exists(select 1 from public.children c where c.id = vaccination_records.child_id and (
   public.is_vaxreach_admin() or exists(select 1 from public.asha_workers w where w.id = c.assigned_worker_id and w.profile_id = auth.uid() and w.active)
 )) and (recorded_by is null or recorded_by = auth.uid()) and (
   administered_by_worker_id is null or administered_by_worker_id = (select w.id from public.asha_workers w where w.profile_id = auth.uid()) or public.is_vaxreach_admin()
@@ -59,7 +59,7 @@ using ((select public.is_vaxreach_admin()) or exists(select 1 from public.asha_w
 create policy "admins or assigned ASHA create tasks" on public.outreach_tasks for insert to authenticated
 with check ((select public.is_vaxreach_admin()) or exists(
   select 1 from public.asha_workers w join public.children c on c.assigned_worker_id = w.id
-  where w.id = assigned_worker_id and w.profile_id = (select auth.uid()) and w.active and c.id = child_id
+  where w.id = outreach_tasks.assigned_worker_id and w.profile_id = (select auth.uid()) and w.active and c.id = outreach_tasks.child_id
 ));
 create policy "admins or assigned ASHA update tasks" on public.outreach_tasks for update to authenticated
 using ((select public.is_vaxreach_admin()) or exists(select 1 from public.asha_workers w where w.id = assigned_worker_id and w.profile_id = (select auth.uid()) and w.active))

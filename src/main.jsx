@@ -7,9 +7,11 @@ import App from './App.jsx'
 import { ChildrenProvider } from './hooks/ChildrenContext.jsx'
 import { OutreachProvider } from './hooks/OutreachContext.jsx'
 import { AuthProvider } from './hooks/AuthProvider.jsx'
+import { ToastProvider } from './components/ui.jsx'
+import { WorkersProvider } from './hooks/WorkersContext.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter><AuthProvider><ChildrenProvider><OutreachProvider><App /></OutreachProvider></ChildrenProvider></AuthProvider></BrowserRouter>
+    <BrowserRouter><ToastProvider><AuthProvider><ChildrenProvider><WorkersProvider><OutreachProvider><App /></OutreachProvider></WorkersProvider></ChildrenProvider></AuthProvider></ToastProvider></BrowserRouter>
   </StrictMode>,
 )

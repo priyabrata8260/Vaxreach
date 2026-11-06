@@ -8,7 +8,7 @@ function DoseRecordAction({ row, canRecord, isOpen, dateValue, error, onOpen, on
   if (!isOpen) return <button className="dose-record-trigger" type="button" onClick={() => onOpen(row)}><PenLine size={13} /> Record dose</button>
 
   return <form className="dose-entry-form" onSubmit={onSubmit}>
-    <label><span className="sr-only">Actual vaccination date for {row.childName}, {row.vaccineName} dose {row.doseNumber}</span><input type="date" value={dateValue} min={row.scheduledDate} max={row.referenceDate} required onChange={(event) => onDateChange(event.target.value)} /></label>
+    <label><span className="sr-only">Actual vaccination date for {row.childName}, {row.vaccineName} dose {row.doseNumber}</span><input type="date" value={dateValue} required onChange={(event) => onDateChange(event.target.value)} /></label>
     {error && <span className="dose-entry-error" role="alert"><CircleAlert size={12} />{error}</span>}
     <div className="dose-entry-controls"><button className="dose-save-button" type="submit">Save</button><button className="dose-cancel-button" type="button" onClick={onClose}>Cancel</button></div>
   </form>

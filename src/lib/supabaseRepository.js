@@ -2,7 +2,6 @@ import { supabase } from './supabase.js'
 import { VACCINATION_SCHEDULE, createChildRecord } from '../data/syntheticChildren.js'
 
 const fail = (error) => { if (error) throw error }
-const today = () => new Date().toISOString().slice(0, 10)
 const toScheduleId = (code) => code
 
 function mapChild(row) {
@@ -24,6 +23,48 @@ function mapChild(row) {
 }
 
 const childSelect = 'id,child_id,name,date_of_birth,registration_date,migration_status,family_reachability,locality:localities!children_locality_id_fkey(name),assigned_worker:asha_workers!children_assigned_worker_id_fkey(id,name),vaccination_records(id,schedule_code,scheduled_date,administered_date,administering_worker:asha_workers!vaccination_records_administered_by_worker_id_fkey(name),recorder:profiles!vaccination_records_recorded_by_fkey(full_name),schedule:vaccination_schedule!vaccination_records_schedule_code_fkey(code,vaccine_name,dose_number,due_after_days))'
+const workerSelect = 'id,worker_code,name,active,profile_id,service_areas:asha_worker_localities(locality:localities(name))'
+
+export async function listWorkers() {
+  const { data, error } = await supabase.from('asha_workers').select(workerSelect).order('name')
+  fail(error)
+  return (data ?? []).map((row) => ({ workerId: row.worker_code, name: row.name, active: row.active, locality: (row.service_areas ?? []).map((item) => item.locality?.name).filter(Boolean).join(', '), profileLinked: Boolean(row.profile_id) }))
+}
+
+async function saveWorkerLocality(workerCode, localityName) {
+  if (!localityName) return
+  const { data: locality, error: localityError } = await supabase.from('localities').select('id').eq('name', localityName).single()
+  fail(localityError)
+  const { data: worker, error: workerError } = await supabase.from('asha_workers').select('id').eq('worker_code', workerCode).single()
+  fail(workerError)
+  const { error: clearError } = await supabase.from('asha_worker_localities').delete().eq('worker_id', worker.id)
+  fail(clearError)
+  const { error: insertError } = await supabase.from('asha_worker_localities').insert({ worker_id: worker.id, locality_id: locality.id })
+  fail(insertError)
+}
+
+export async function createWorker(details) {
+  const { data, error } = await supabase.from('asha_workers').insert({ worker_code: details.workerId, name: details.name.trim(), active: details.active !== false }).select('worker_code').single()
+  fail(error)
+  await saveWorkerLocality(data.worker_code, details.locality)
+  return { workerId: data.worker_code }
+}
+
+export async function updateWorker(workerId, details) {
+  const { error } = await supabase.from('asha_workers').update({ name: details.name.trim(), active: details.active !== false }).eq('worker_code', workerId)
+  fail(error)
+  const { data: worker, error: workerError } = await supabase.from('asha_workers').select('id').eq('worker_code', workerId).single()
+  fail(workerError)
+  const { error: clearError } = await supabase.from('asha_worker_localities').delete().eq('worker_id', worker.id)
+  fail(clearError)
+  if (details.locality) {
+    const { data: locality, error: localityError } = await supabase.from('localities').select('id').eq('name', details.locality).single()
+    fail(localityError)
+    const { error: insertError } = await supabase.from('asha_worker_localities').insert({ worker_id: worker.id, locality_id: locality.id })
+    fail(insertError)
+  }
+  return { workerId }
+}
 async function referenceIds(localityName, workerName) {
   const [{ data: locality, error: localityError }, { data: worker, error: workerError }] = await Promise.all([
     supabase.from('localities').select('id').eq('name', localityName).single(),
@@ -67,8 +108,6 @@ export async function recordVaccination(child, doseId, administeredDate, userId)
   dueDate.setUTCDate(dueDate.getUTCDate() + dose.dueAfterDays)
   const scheduledDate = dueDate.toISOString().slice(0, 10)
   if (child.vaccinationHistory.some((item) => item.id === doseId)) throw new Error('This dose has already been recorded for this child.')
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(administeredDate) || Number.isNaN(new Date(`${administeredDate}T00:00:00Z`).getTime())) throw new Error('Enter a valid vaccination date.')
-  if (administeredDate < scheduledDate || administeredDate > today()) throw new Error('Vaccination date must be on or after the scheduled date and cannot be in the future.')
   const { data: worker, error: workerError } = await supabase.from('asha_workers').select('id').eq('name', child.assignedAshaWorker).single()
   fail(workerError)
   const { error } = await supabase.from('vaccination_records').insert({
@@ -76,6 +115,23 @@ export async function recordVaccination(child, doseId, administeredDate, userId)
     administered_date: administeredDate, administered_by_worker_id: worker.id, recorded_by: userId,
   })
   fail(error)
+}
+
+export async function correctVaccination(child, doseId, administeredDate) {
+  const record = child.vaccinationHistory.find((item) => item.id === doseId)
+  if (!record) throw new Error('Vaccination record was not found.')
+  const { error } = await supabase.from('vaccination_records')
+    .update({ administered_date: administeredDate })
+    .eq('child_id', child._dbId).eq('schedule_code', doseId)
+  fail(error)
+}
+
+export async function listVaccinationSchedule() {
+  const { data, error } = await supabase.from('vaccination_schedule')
+    .select('code,vaccine_name,dose_number,due_after_days')
+    .order('due_after_days')
+  fail(error)
+  return data ?? []
 }
 
 export async function listTasks() {

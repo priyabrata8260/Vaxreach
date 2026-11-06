@@ -1,5 +1,5 @@
 // Deterministic, entirely fictional prototype data. See docs/synthetic-data-assumptions.md.
-export const DATA_AS_OF = '2026-11-05'
+export const DATA_AS_OF = '2026-11-06'
 
 export const VACCINATION_SCHEDULE = [
   { id: 'bcg', name: 'BCG', doseNumber: 1, dueAfterDays: 0 },

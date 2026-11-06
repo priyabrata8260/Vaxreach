@@ -45,7 +45,7 @@ function App() {
       <Route element={<AppLayout role={APP_ROLES.ASHA_WORKER} />}>
         <Route index element={<Navigate to="/asha/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} /><Route path="children" element={<ChildrenPage />} /><Route path="children/:childId" element={<ChildProfilePage />} />
-        <Route path="vaccination-tracker" element={<VaccinationTrackerPage />} /><Route path="follow-ups" element={<OutreachPage />} /><Route path="outreach" element={<OutreachPage />} />
+        <Route path="vaccination-tracker" element={<VaccinationTrackerPage />} /><Route path="follow-ups" element={<OutreachPage />} /><Route path="outreach" element={<Navigate to="/asha/follow-ups" replace />} />
         <Route path="locality-map" element={<LocalityMapPage />} />
         <Route path="profile" element={<ASHAProfilePage />} />
         <Route path="*" element={<Navigate to="/asha/dashboard" replace />} />

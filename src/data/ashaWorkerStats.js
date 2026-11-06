@@ -4,8 +4,8 @@ const referenceDate = new Date(`${DATA_AS_OF}T00:00:00Z`)
 const upcomingCutoff = new Date(referenceDate)
 upcomingCutoff.setUTCDate(upcomingCutoff.getUTCDate() + 30)
 
-export function deriveAshaWorkers(children, tasks) {
-  return ASHA_WORKER_ROSTER.map((worker) => {
+export function deriveAshaWorkers(children, tasks, roster = ASHA_WORKER_ROSTER) {
+  return roster.map((worker) => {
     const assignedChildren = children.filter((child) => child.assignedAshaWorker === worker.name)
     const workerTasks = tasks.filter((task) => task.assignedTo === worker.name)
     const upcomingFollowUps = workerTasks.filter((task) => {
@@ -19,7 +19,7 @@ export function deriveAshaWorkers(children, tasks) {
       ...worker,
       assignedChildren,
       localities,
-      localityLabel: localities.length ? localities.join(', ') : 'No children assigned',
+      localityLabel: worker.locality || (localities.length ? localities.join(', ') : 'No children assigned'),
       assignedChildCount: assignedChildren.length,
       overdueChildCount: assignedChildren.filter((child) => child.overdueDoses.length > 0).length,
       upcomingFollowUpCount: upcomingFollowUps.length,

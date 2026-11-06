@@ -180,9 +180,9 @@ using ((select public.is_vaxreach_admin())) with check ((select public.is_vaxrea
 create policy "admins delete children" on public.children for delete to authenticated using ((select public.is_vaxreach_admin()));
 
 create policy "vaccination records visible with child" on public.vaccination_records for select to authenticated
-using (exists(select 1 from public.children c where c.id = child_id));
+using (exists(select 1 from public.children c where c.id = vaccination_records.child_id));
 create policy "authorized workers record vaccination" on public.vaccination_records for insert to authenticated
-with check (exists(select 1 from public.children c where c.id = child_id and (
+with check (exists(select 1 from public.children c where c.id = vaccination_records.child_id and (
   public.is_vaxreach_admin() or exists(select 1 from public.asha_workers w where w.id = c.assigned_worker_id and w.profile_id = auth.uid())
   or exists(select 1 from public.profiles p where p.id = auth.uid() and p.role = 'health_worker')))
   and (recorded_by is null or recorded_by = auth.uid()));

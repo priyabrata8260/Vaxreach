@@ -9,12 +9,14 @@ import { VACCINATION_SCHEDULE } from '../data/syntheticChildren.js'
 import { deriveReportsData, getReportDateBounds } from '../data/reports.js'
 import { useChildren } from '../hooks/useChildren.js'
 import { useOutreach } from '../hooks/useOutreach.js'
+import { useAuth } from '../hooks/useAuth.js'
 import { exportCsv } from '../utils/exportCsv.js'
 
 const dateLabel = (value) => value ? new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) : '—'
 const percent = (value) => `${value}%`
 
 function ReportsPage() {
+  const { cloudEnabled } = useAuth()
   const { children, loading: childrenLoading, error: childrenError } = useChildren()
   const { tasks, loading: tasksLoading, error: tasksError } = useOutreach()
   const bounds = useMemo(() => getReportDateBounds(children), [children])
@@ -102,7 +104,7 @@ function ReportsPage() {
   const missedChartRows = report.missedDistribution.map((item) => ({ ...item, value: item.count }))
 
   return <section className="reports-page" aria-labelledby="reports-title">
-    <div className="page-heading reports-heading"><div><p className="eyebrow">PROGRAMME INSIGHTS</p><h1 id="reports-title">Reports</h1><p className="page-description">Explore vaccination coverage, missed doses and follow-up needs from the shared child registry.</p></div><div className="reports-heading-actions"><span className="synthetic-report-label"><span /> Synthetic demonstration data</span><button className="report-action-button" type="button" onClick={downloadCsv} disabled={!report.visibleDoseEvents.length}><Download size={15} /> Export CSV</button><button className="report-action-button" type="button" onClick={() => window.print()}><Printer size={15} /> Print</button></div></div>
+    <div className="page-heading reports-heading"><div><p className="eyebrow">PROGRAMME INSIGHTS</p><h1 id="reports-title">Reports</h1><p className="page-description">Explore vaccination coverage, missed doses and follow-up needs from the shared child registry.</p></div><div className="reports-heading-actions"><span className="synthetic-report-label"><span /> {cloudEnabled ? 'Connected VaxReach records · prototype schedule' : 'Synthetic demonstration data · browser-local'}</span><button className="report-action-button" type="button" onClick={downloadCsv} disabled={!report.visibleDoseEvents.length}><Download size={15} /> Export CSV</button><button className="report-action-button" type="button" onClick={() => window.print()}><Printer size={15} /> Print</button></div></div>
 
     <section className="report-filter-panel" aria-label="Report filters">
       <div className="report-filter-heading"><div><CalendarDays size={16} /><div><strong>Report filters</strong><small>Filters recalculate every report from shared records.</small></div></div><button type="button" className="report-clear-button" onClick={clearFilters}>Clear filters</button></div>
@@ -153,7 +155,7 @@ function ReportsPage() {
       <DataTable title="Locality-wise coverage" description="Coverage is completed eligible doses divided by eligible scheduled doses." columns={localityColumns} rows={report.localityCoverage} caption="Locality-wise vaccination coverage" emptyMessage="No locality records match these filters." />
       <DataTable title="ASHA worker performance" description="Dose coverage and overdue counts for each worker's assigned child records." columns={workerColumns} rows={report.workerPerformance} caption="ASHA worker performance report" emptyMessage="No worker records match these filters." />
       <DataTable title="Migrated and unreachable families" description="Family status among children with a scheduled dose in the selected reporting cohort." columns={familyColumns} rows={familyRows} caption="Migrated or unreachable families and their follow-up" emptyMessage="No migrated or unreachable families match these filters." />
-      <p className="report-disclaimer">Synthetic demonstration data · No real personal health information. This simplified schedule and its coverage measures are for prototype demonstration only.</p>
+      <p className="report-disclaimer">{cloudEnabled ? 'Report records are loaded from the connected VaxReach database. CSV files are generated in this browser from the filtered records. The simplified vaccination schedule and coverage measures use prototype assumptions.' : 'Synthetic demonstration data is stored in this browser. CSV files are generated locally. No real personal health information is shown; the simplified vaccination schedule and coverage measures use prototype assumptions.'}</p>
     </>}
   </section>
 }

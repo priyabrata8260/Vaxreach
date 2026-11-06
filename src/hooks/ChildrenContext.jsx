@@ -29,12 +29,6 @@ function nextChildId(children) {
   return `VXR-${String(highestId + 1).padStart(4, '0')}`
 }
 
-function isValidISODate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const date = new Date(`${value}T00:00:00Z`)
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
-}
-
 export function ChildrenProvider({ children: appChildren }) {
   const { session, sessionRevision } = useAuth()
   const scopeKey = isSupabaseConfigured ? `${session?.user?.id ?? 'signed-out'}:${sessionRevision}` : 'local'
@@ -73,9 +67,9 @@ function ScopedChildrenProvider({ children: appChildren }) {
       if (requestId !== loadRequest.current) return
       setRegistryState({ ownerId: userId, children: rows, loading: false, error: '' })
       recordedDoseKeys.current = new Set(rows.flatMap((child) => child.vaccinationHistory.map((dose) => `${child.childId}:${dose.id}`)))
-    }).catch((cause) => {
+    }).catch(() => {
       if (requestId === loadRequest.current) {
-        setRegistryState({ ownerId: userId, children: [], loading: false, error: cause.message || 'Unable to load child records.' })
+        setRegistryState({ ownerId: userId, children: [], loading: false, error: 'Unable to load child records.' })
       }
     })
     return () => { if (loadRequest.current === requestId) loadRequest.current += 1 }
@@ -140,13 +134,9 @@ function ScopedChildrenProvider({ children: appChildren }) {
     if (!dose) return { ok: false, message: 'This dose is not part of the sample schedule.' }
     const recordKey = `${childId}:${doseId}`
     if (recordedDoseKeys.current.has(recordKey) || child.vaccinationHistory.some((entry) => entry.id === doseId)) return { ok: false, message: 'This dose has already been recorded for this child.' }
-    if (!isValidISODate(administeredDate)) return { ok: false, message: 'Enter a valid vaccination date.' }
-
     const dueEntry = [...child.pendingDoses, ...child.overdueDoses].find((entry) => entry.id === doseId)
     if (!dueEntry) return { ok: false, message: 'The scheduled dose could not be found for this child.' }
     if (dueEntry.dueDate > DATA_AS_OF) return { ok: false, message: 'A future dose cannot be recorded before its scheduled date.' }
-    if (administeredDate < dueEntry.dueDate) return { ok: false, message: 'Vaccination date cannot be earlier than the scheduled date.' }
-    if (administeredDate > DATA_AS_OF) return { ok: false, message: 'Vaccination date cannot be after the prototype reference date.' }
 
     const vaccinationHistory = [...child.vaccinationHistory, {
       ...dose,
@@ -172,6 +162,27 @@ function ScopedChildrenProvider({ children: appChildren }) {
     return { ok: true, child: updatedChild }
   }, [children, userId, ownerId, profile, cloudEnabled, isCurrentOwner, updateRegistryState])
 
+  const correctDose = useCallback(async (childId, doseId, administeredDate) => {
+    if (!hasPermission(PERMISSIONS.MANAGE_ASSIGNMENTS, cloudEnabled ? profile : undefined)) return { ok: false, message: 'Administrator access is required to correct vaccination records.' }
+    const operationOwnerId = ownerId
+    const child = children.find((record) => record.childId === childId)
+    if (!child?.vaccinationHistory.some((entry) => entry.id === doseId)) return { ok: false, message: 'Vaccination record was not found.' }
+    const vaccinationHistory = child.vaccinationHistory.map((entry) => entry.id === doseId ? { ...entry, administeredDate } : entry)
+    const updatedChild = createChildRecord({ ...child, vaccinationHistory })
+    if (isSupabaseConfigured) {
+      try {
+        await repository.correctVaccination(child, doseId, administeredDate)
+        if (!isCurrentOwner(operationOwnerId)) return { ok: false, message: 'Your session changed before the correction finished.' }
+        const rows = await repository.listChildren()
+        if (!isCurrentOwner(operationOwnerId)) return { ok: false, message: 'Your session changed before the correction finished.' }
+        updateRegistryState(operationOwnerId, { children: rows, loading: false, error: '' })
+        return { ok: true, child: rows.find((row) => row.childId === childId) ?? updatedChild }
+      } catch (cause) { return { ok: false, message: cause.message || 'Unable to correct vaccination.' } }
+    }
+    updateRegistryState(operationOwnerId, (current) => ({ children: current.children.map((record) => record.childId === childId ? updatedChild : record) }))
+    return { ok: true, child: updatedChild }
+  }, [children, ownerId, profile, cloudEnabled, isCurrentOwner, updateRegistryState])
+
   const refreshChildren = useCallback(async () => {
     if (!isSupabaseConfigured || !userId) return
     const requestId = ++loadRequest.current
@@ -182,11 +193,11 @@ function ScopedChildrenProvider({ children: appChildren }) {
       if (!isCurrentOwner(requestOwnerId) || requestId !== loadRequest.current) return
       updateRegistryState(requestOwnerId, { children: rows, loading: false, error: '' })
       recordedDoseKeys.current = new Set(rows.flatMap((child) => child.vaccinationHistory.map((dose) => `${child.childId}:${dose.id}`)))
-    } catch (cause) {
-      if (isCurrentOwner(requestOwnerId) && requestId === loadRequest.current) updateRegistryState(requestOwnerId, { children: [], loading: false, error: cause.message || 'Unable to load child records.' })
+    } catch {
+      if (isCurrentOwner(requestOwnerId) && requestId === loadRequest.current) updateRegistryState(requestOwnerId, { children: [], loading: false, error: 'Unable to load child records.' })
     }
   }, [userId, ownerId, isCurrentOwner, updateRegistryState])
 
-  const value = useMemo(() => ({ children, addChild, updateChild, recordDose, loading, error, refreshChildren }), [children, addChild, updateChild, recordDose, loading, error, refreshChildren])
+  const value = useMemo(() => ({ children, addChild, updateChild, recordDose, correctDose, loading, error, refreshChildren }), [children, addChild, updateChild, recordDose, correctDose, loading, error, refreshChildren])
   return <ChildrenContext.Provider value={value}>{appChildren}</ChildrenContext.Provider>
 }
